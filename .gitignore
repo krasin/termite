@@ -8,3 +8,8 @@ example/loopback/loopback
 example/multizip/multizip
 example/bulkstat/bulkstat
 example/zipfs/zipfs
+
+termite/chroot/chroot
+termite/worker/worker
+termite/rpcfs/rpcfs
+termite/fsserver/fsserver
