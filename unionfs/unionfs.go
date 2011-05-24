@@ -6,11 +6,11 @@ import (
 	"github.com/hanwen/go-fuse/fuse"
 	"log"
 	"os"
-	"syscall"
 	"path"
 	"path/filepath"
-	"sync"
 	"strings"
+	"sync"
+	"syscall"
 	"time"
 )
 
@@ -125,24 +125,24 @@ func NewUnionFs(name string, fileSystems []fuse.FileSystem, options UnionFsOptio
 ////////////////
 // Deal with all the caches.
 
-func (me *UnionFs) isDeleted(name string) bool {
+func (me *UnionFs) isDeleted(name string) (deleted bool, accessError os.Error) {
 	marker := me.deletionPath(name)
 	haveCache, found := me.deletionCache.HasEntry(filepath.Base(marker))
 	if haveCache {
-		return found
+		return found, nil
 	}
 
 	_, code := me.fileSystems[0].GetAttr(marker)
 
 	if code == fuse.OK {
-		return true
+		return true, nil
 	}
 	if code == fuse.ENOENT {
-		return false
+		return false, nil
 	}
 
-	panic(fmt.Sprintf("Unexpected GetAttr return code %v %v", code, marker))
-	return false
+	log.Println("error accessing deletion marker:", marker) 
+	return false, os.EROFS
 }
 
 func (me *UnionFs) getBranch(name string) branchResult {
@@ -211,16 +211,26 @@ func (me *UnionFs) removeDeletion(name string) {
 	}
 }
 
-func (me *UnionFs) putDeletion(name string) fuse.Status {
+func (me *UnionFs) putDeletion(name string) (code fuse.Status) {
 	marker := me.deletionPath(name)
 	me.deletionCache.AddEntry(path.Base(marker))
 
 	// Is there a WriteStringToFileOrDie ?
 	writable := me.fileSystems[0]
-	f, code := writable.Open(marker, uint32(os.O_TRUNC|os.O_WRONLY|os.O_CREATE))
+	fi, code := writable.GetAttr(marker)
+	if code.Ok() && fi.Size == int64(len(name)) {
+		return fuse.OK
+	}
+	
+	var f fuse.File
+	if code == fuse.ENOENT {
+		f, code = writable.Create(marker, uint32(os.O_TRUNC|os.O_WRONLY), 0644)
+	} else {
+		writable.Chmod(marker, 0644)
+		f, code = writable.Open(marker, uint32(os.O_TRUNC|os.O_WRONLY))
+	}
 	if !code.Ok() {
-		log.Printf("could not create deletion file %v: %v",
-			marker, code)
+		log.Printf("could not create deletion file %v: %v", marker, code)
 		return fuse.EPERM
 	}
 	defer f.Release()
@@ -237,6 +247,11 @@ func (me *UnionFs) putDeletion(name string) fuse.Status {
 // Promotion.
 
 func (me *UnionFs) Promote(name string, srcResult branchResult) fuse.Status {
+	if !srcResult.attr.IsRegular() {
+		// TODO - implement rename for dirs, links, etc.
+		return fuse.ENOSYS
+	}
+	
 	writable := me.fileSystems[0]
 	sourceFs := me.fileSystems[srcResult.branch]
 
@@ -323,6 +338,10 @@ func (me *UnionFs) Symlink(pointedTo string, linkName string) (code fuse.Status)
 }
 
 func (me *UnionFs) Truncate(path string, offset uint64) (code fuse.Status) {
+	if path == _DROP_CACHE {
+		return fuse.OK
+	}
+
 	r := me.getBranch(path)
 	if r.branch > 0 {
 		code = me.Promote(path, r)
@@ -541,7 +560,12 @@ func (me *UnionFs) GetAttr(name string) (a *os.FileInfo, s fuse.Status) {
 	if name == me.options.DeletionDirName {
 		return nil, fuse.ENOENT
 	}
-	if me.isDeleted(name) {
+	isDel, err := me.isDeleted(name)
+	if err != nil {
+		return nil, fuse.OsErrorToErrno(err)
+	}
+	
+	if isDel {
 		return nil, fuse.ENOENT
 	}
 	r := me.getBranch(name)
@@ -552,6 +576,10 @@ func (me *UnionFs) GetAttr(name string) (a *os.FileInfo, s fuse.Status) {
 }
 
 func (me *UnionFs) GetXAttr(name string, attr string) ([]byte, fuse.Status) {
+	if name == _DROP_CACHE {
+		return nil, syscall.ENODATA
+	}
+
 	r := me.getBranch(name)
 	if r.branch >= 0 {
 		return me.fileSystems[r.branch].GetXAttr(name, attr)
@@ -601,6 +629,9 @@ func (me *UnionFs) OpenDir(directory string) (stream chan fuse.DirEntry, status 
 	}
 
 	wg.Wait()
+	if deletions == nil {
+		return nil, syscall.EROFS
+	}
 
 	results := entries[0]
 

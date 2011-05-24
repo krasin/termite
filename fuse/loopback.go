@@ -16,20 +16,20 @@ var _ = fmt.Println
 var _ = log.Println
 
 type LoopbackFileSystem struct {
-	root string
+	Root string
 
 	DefaultFileSystem
 }
 
 func NewLoopbackFileSystem(root string) (out *LoopbackFileSystem) {
 	out = new(LoopbackFileSystem)
-	out.root = root
+	out.Root = root
 
 	return out
 }
 
 func (me *LoopbackFileSystem) GetPath(relPath string) string {
-	return filepath.Join(me.root, relPath)
+	return filepath.Join(me.Root, relPath)
 }
 
 func (me *LoopbackFileSystem) GetAttr(name string) (*os.FileInfo, Status) {
@@ -59,11 +59,11 @@ func (me *LoopbackFileSystem) OpenDir(name string) (stream chan DirEntry, status
 					Mode: infos[i].Mode,
 				}
 			}
-			if len(infos) < want {
+			if len(infos) < want || err == os.EOF {
 				break
 			}
 			if err != nil {
-				// TODO - how to signal error
+				log.Println("Readdir() returned err:", err)
 				break
 			}
 		}

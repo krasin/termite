@@ -9,6 +9,7 @@ import (
 )
 
 func main() {
+	version := flag.Bool("version", false, "print version number")
 	debug := flag.Bool("debug", false, "debug on")
 	threaded := flag.Bool("threaded", true, "threading on")
 	delcache_ttl := flag.Float64("deletion_cache_ttl", 5.0, "Deletion cache TTL in seconds.")
@@ -16,6 +17,11 @@ func main() {
 	deldirname := flag.String(
 		"deletion_dirname", "GOUNIONFS_DELETIONS", "Directory name to use for deletions.")
 	flag.Parse()
+
+	if *version {
+		fmt.Println(fuse.Version())
+		os.Exit(0)
+	}
 
 	if len(flag.Args()) < 2 {
 		fmt.Println("Usage:\n  main MOUNTPOINT BASEDIR")
@@ -32,6 +38,7 @@ func main() {
 			EntryTimeout:    1.0,
 			AttrTimeout:     1.0,
 			NegativeTimeout: 1.0,
+			Owner: fuse.CurrentOwner(),
 		},
 		UpdateOnMount: true,
 	}
@@ -43,7 +50,7 @@ func main() {
 		fmt.Printf("Mount fail: %v\n", err)
 		os.Exit(1)
 	}
-	
+
 	conn.Debug = *debug
 	state.Debug = *debug
 	state.Loop(*threaded)

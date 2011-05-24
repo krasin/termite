@@ -44,15 +44,28 @@ func setup(t *testing.T) (workdir string, cleanup func()) {
 	WriteFile(wd+"/ro/file2", "file2")
 
 	fs := NewAutoUnionFs(wd+"/store", testAOpts)
-	state, _, err := fuse.MountFileSystem(wd + "/mount", fs, &testAOpts.FileSystemOptions)
+	state, conn, err := fuse.MountFileSystem(wd + "/mount", fs, &testAOpts.FileSystemOptions)
 	CheckSuccess(err)
 	state.Debug = true
+	conn.Debug = true
 	go state.Loop(false)
 
 	return wd, func() {
 		state.Unmount()
 		os.RemoveAll(wd)
 	}
+}
+
+func TestVersion(t *testing.T) {
+	wd, clean := setup(t)
+	defer clean()
+
+	c, err := ioutil.ReadFile(wd+"/mount/status/gounionfs_version")
+	CheckSuccess(err)
+	if len(c) == 0 {
+		t.Fatal("No version found.")
+	}
+	log.Println("Found version:", string(c))
 }
 
 func TestAutoFsSymlink(t *testing.T) {

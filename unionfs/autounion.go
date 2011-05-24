@@ -88,23 +88,24 @@ func (me *AutoUnionFs) createFs(name string, roots []string) (*UnionFs, fuse.Sta
 		}
 	}
 
-	gofs := me.knownFileSystems[name]
-	if gofs != nil {
-		return gofs, fuse.OK
+	ufs := me.knownFileSystems[name]
+	if ufs != nil {
+		log.Println("Already have a workspace:", name)
+		return nil, fuse.EBUSY
 	}
 
-	fses := make([]fuse.FileSystem, 0)
-	for _, r := range roots {
-		fses = append(fses, fuse.NewLoopbackFileSystem(r))
+	ufs, err := NewUnionFsFromRoots(roots, &me.options.UnionFsOptions)
+	if err != nil {
+		log.Println("Could not create UnionFs:", err)
+		return nil, fuse.EPERM
 	}
-	identifier := fmt.Sprintf("%v", roots)
-	log.Println("Adding UnionFs for", identifier)
-	gofs = NewUnionFs(identifier, fses, me.options.UnionFsOptions)
 
-	me.knownFileSystems[name] = gofs
+	log.Printf("Adding workspace %v for roots %v", name, ufs.Name())
+
+	me.knownFileSystems[name] = ufs
 	me.nameRootMap[name] = roots[0]
 
-	return gofs, fuse.OK
+	return ufs, fuse.OK
 }
 
 func (me *AutoUnionFs) rmFs(name string) (code fuse.Status) {
@@ -132,9 +133,9 @@ func (me *AutoUnionFs) addFs(name string, roots []string) (code fuse.Status) {
 		log.Println("Illegal name for overlay", roots)
 		return fuse.EINVAL
 	}
-	gofs, code := me.createFs(name, roots)
-	if gofs != nil {
-		me.connector.Mount("/"+name, gofs, &me.options.FileSystemOptions)
+	fs, code := me.createFs(name, roots)
+	if code.Ok() && fs != nil {
+		code = me.connector.Mount("/"+name, fs, &me.options.FileSystemOptions)
 	}
 	return code
 }
@@ -245,6 +246,7 @@ func (me *AutoUnionFs) GetAttr(path string) (*os.FileInfo, fuse.Status) {
 	if path == filepath.Join(_STATUS, _VERSION) {
 		a := &os.FileInfo{
 			Mode: fuse.S_IFREG | 0644,
+			Size: int64(len(fuse.Version())),
 		}
 		return a, fuse.OK
 	}
@@ -293,6 +295,16 @@ func (me *AutoUnionFs) StatusDir() (stream chan fuse.DirEntry, status fuse.Statu
 
 	close(stream)
 	return stream, fuse.OK
+}
+
+func (me *AutoUnionFs) Open(path string, flags uint32) (fuse.File, fuse.Status) {
+	if path == _STATUS + "/" + _VERSION {
+		if flags & fuse.O_ANYWRITE != 0 {
+			return nil, fuse.EPERM
+		}
+		return fuse.NewReadOnlyFile([]byte(fuse.Version())), fuse.OK
+	}
+	return nil, fuse.ENOENT
 }
 
 func (me *AutoUnionFs) OpenDir(name string) (stream chan fuse.DirEntry, status fuse.Status) {

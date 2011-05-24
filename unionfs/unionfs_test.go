@@ -178,6 +178,36 @@ func TestChmod(t *testing.T) {
 	}
 }
 
+func TestDelete(t *testing.T) {
+	wd, clean := setupUfs(t)
+	defer clean()
+
+	writeToFile(wd+"/ro/file", "a")
+	_, err := os.Lstat(wd + "/mount/file")
+	CheckSuccess(err)
+
+	err = os.Remove(wd + "/mount/file")
+	CheckSuccess(err)
+
+	_, err = os.Lstat(wd + "/mount/file")
+	if err == nil {
+		t.Fatal("should have disappeared.")
+	}
+	delPath := wd + "/rw/" + testOpts.DeletionDirName
+	names := dirNames(delPath)
+	if len(names) != 1 {
+		t.Fatal("Should have 1 deletion", names)
+	}
+
+	for k, _ := range names {
+		c, err := ioutil.ReadFile(delPath + "/" + k)
+		CheckSuccess(err)
+		if string(c) != "file" {
+			t.Fatal("content mismatch", string(c)) 
+		}
+	}
+}
+
 func TestBasic(t *testing.T) {
 	wd, clean := setupUfs(t)
 	defer clean()
@@ -456,7 +486,7 @@ func TestRemoveAll(t *testing.T) {
 
 	err := os.Mkdir(wd + "/ro/dir", 0755)
 	CheckSuccess(err)
-	
+
 	contents := "hello"
 	fn := wd + "/ro/dir/y"
 	err = ioutil.WriteFile(fn, []byte(contents), 0644)
@@ -466,5 +496,117 @@ func TestRemoveAll(t *testing.T) {
 	if err != nil {
 		t.Error("Should delete all")
 	}
+}
+
+func Readdirnames(dir string) ([]string, os.Error) {
+	f, err := os.Open(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	defer f.Close()
+	return f.Readdirnames(-1)
+}
+
+func TestDropCache(t *testing.T) {
+	t.Log("TestDropCache")
+	wd, clean := setupUfs(t)
+	defer clean()
+
+	err := ioutil.WriteFile(wd + "/ro/file", []byte("bla"), 0644)
+	CheckSuccess(err)
+
+	_, err = os.Lstat(wd + "/mount/.drop_cache")
+	CheckSuccess(err)
+
+	names, err := Readdirnames(wd + "/mount")
+	CheckSuccess(err)
+	if len(names) != 1 || names[0] != "file"  {
+		t.Fatal("unexpected names", names)
+	}
+
+	err = ioutil.WriteFile(wd + "/ro/file2", []byte("blabla"), 0644)
+	names2, err := Readdirnames(wd + "/mount")
+	CheckSuccess(err)
+	if len(names2) != len(names) {
+		t.Fatal("mismatch", names2)
+	}
+
+	err = ioutil.WriteFile(wd + "/mount/.drop_cache", []byte("does not matter"), 0644)
+	CheckSuccess(err)
+	names2, err = Readdirnames(wd + "/mount")
+	if len(names2) != 2 {
+		t.Fatal("mismatch 2", names2)
+	}
+}
+
+func TestDisappearing(t *testing.T) {
+	// This init is like setupUfs, but we want access to the
+	// writable Fs.
+	wd := fuse.MakeTempDir()
+	defer os.RemoveAll(wd)
+	err := os.Mkdir(wd+"/mount", 0700)
+	fuse.CheckSuccess(err)
+
+	err = os.Mkdir(wd+"/rw", 0700)
+	fuse.CheckSuccess(err)
+
+	os.Mkdir(wd+"/ro", 0700)
+	fuse.CheckSuccess(err)
+
+	wrFs := fuse.NewLoopbackFileSystem(wd+"/rw")
+	var fses []fuse.FileSystem
+	fses = append(fses, wrFs)
+	fses = append(fses, fuse.NewLoopbackFileSystem(wd+"/ro"))
+	ufs := NewUnionFs("testFs", fses, testOpts)
+
+	opts := &fuse.FileSystemOptions{
+	       EntryTimeout:    entryTtl,
+	       AttrTimeout:     entryTtl,
+	       NegativeTimeout: entryTtl,
+	}
+
+	state, _, err := fuse.MountFileSystem(wd + "/mount", ufs, opts)
+	CheckSuccess(err)
+	defer state.Unmount()
+	state.Debug = true
+	go state.Loop(true)
+
+	log.Println("TestDisappearing2")
+
+	err = ioutil.WriteFile(wd + "/ro/file", []byte("blabla"), 0644)
+	CheckSuccess(err)
+
+	err = os.Remove(wd+"/mount/file")
+	CheckSuccess(err)
+
+	oldRoot := wrFs.Root
+	wrFs.Root = "/dev/null"
+	time.Sleep(1.5*entryTtl*1e9)
+
+	_, err = ioutil.ReadDir(wd+"/mount")
+	if err == nil {
+	       t.Fatal("Readdir should have failed")
+	} 
+	log.Println("expected readdir failure:", err)
+	
+	err = ioutil.WriteFile(wd + "/mount/file2", []byte("blabla"), 0644)
+	if err == nil {
+		t.Fatal("write should have failed")
+	}
+	log.Println("expected write failure:", err)
+
+	// Restore, and wait for caches to catch up.
+	wrFs.Root = oldRoot
+	time.Sleep(1.5*entryTtl*1e9)
+	
+	_, err = ioutil.ReadDir(wd+"/mount")
+	if err != nil {
+	       t.Fatal("Readdir should succeed", err)
+	} 
+	err = ioutil.WriteFile(wd + "/mount/file2", []byte("blabla"), 0644)
+	if err != nil {
+		t.Fatal("write should succeed", err)
+	}	
 }
 

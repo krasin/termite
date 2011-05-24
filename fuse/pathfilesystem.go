@@ -21,6 +21,7 @@ package fuse
 import (
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -58,6 +59,12 @@ func (me *mountData) getIdentity(header *InHeader) *Identity {
 		return &header.Identity
 	}
 	return nil
+}
+
+func (me *mountData) setOwner(attr *Attr) {
+	if me.options.Owner != nil {
+		attr.Owner = *me.options.Owner
+	}
 }
 
 
@@ -173,11 +180,19 @@ func (me *inode) setParent(newParent *inode) {
 	}
 }
 
+func CurrentOwner() *Owner {
+	return &Owner{
+	Uid: uint32(os.Getuid()),
+	Gid: uint32(os.Getgid()),
+	}
+}
+
 func NewFileSystemOptions() *FileSystemOptions {
 	return &FileSystemOptions{
 		NegativeTimeout: 0.0,
 		AttrTimeout:     1.0,
 		EntryTimeout:    1.0,
+		Owner: CurrentOwner(),
 	}
 }
 

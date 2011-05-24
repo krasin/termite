@@ -91,7 +91,13 @@ type FileSystemOptions struct {
 	AttrTimeout     float64
 	NegativeTimeout float64
 
-	// If set, pass calling pid/gid into filesystem.
+	// If set, replace all uids with given UID on outgoing
+	// responses.  NewFileSystemOptions() will set this to the
+	// daemon's uid/gid.
+	*Owner
+
+	// If set, pass UID/GID info from request into the
+	// Mkdir/Create/Mknod/etc.
 	AllowOther      bool
 }
 
@@ -106,7 +112,7 @@ type DefaultFileSystem struct{}
 // DefaultFile returns ENOSYS for every operation.
 type DefaultFile struct{}
 
-// RawFileSystem is an interface closer to the FUSE wire protocol. 
+// RawFileSystem is an interface closer to the FUSE wire protocol.
 //
 // Unless you really know what you are doing, you should not implement
 // this, but rather the FileSystem interface; the details of getting
