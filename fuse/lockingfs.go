@@ -36,14 +36,14 @@ func (me *LockingFileSystem) Readlink(name string) (string, Status) {
 	return me.FileSystem.Readlink(name)
 }
 
-func (me *LockingFileSystem) Mknod(name string, mode uint32, dev uint32) Status {
+func (me *LockingFileSystem) Mknod(name string, mode uint32, dev uint32, id *Identity) Status {
 	defer me.locked()()
-	return me.FileSystem.Mknod(name, mode, dev)
+	return me.FileSystem.Mknod(name, mode, dev, id)
 }
 
-func (me *LockingFileSystem) Mkdir(name string, mode uint32) Status {
+func (me *LockingFileSystem) Mkdir(name string, mode uint32, id *Identity) Status {
 	defer me.locked()()
-	return me.FileSystem.Mkdir(name, mode)
+	return me.FileSystem.Mkdir(name, mode, id)
 }
 
 func (me *LockingFileSystem) Unlink(name string) (code Status) {
@@ -110,9 +110,9 @@ func (me *LockingFileSystem) Access(name string, mode uint32) (code Status) {
 	return me.FileSystem.Access(name, mode)
 }
 
-func (me *LockingFileSystem) Create(name string, flags uint32, mode uint32) (file File, code Status) {
+func (me *LockingFileSystem) Create(name string, flags uint32, mode uint32, id *Identity) (file File, code Status) {
 	defer me.locked()()
-	return me.FileSystem.Create(name, flags, mode)
+	return me.FileSystem.Create(name, flags, mode, id)
 }
 
 func (me *LockingFileSystem) Utimens(name string, AtimeNs uint64, CtimeNs uint64) (code Status) {

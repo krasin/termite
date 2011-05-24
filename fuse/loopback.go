@@ -104,13 +104,30 @@ func (me *LoopbackFileSystem) Readlink(name string) (out string, code Status) {
 	return f, OsErrorToErrno(err)
 }
 
-func (me *LoopbackFileSystem) Mknod(name string, mode uint32, dev uint32) (code Status) {
-	return Status(syscall.Mknod(me.GetPath(name), mode, int(dev)))
+func (me *LoopbackFileSystem) Mknod(name string, mode uint32, dev uint32, id *Identity) (code Status) {
+	code = Status(syscall.Mknod(me.GetPath(name), mode, int(dev)))
+	if code.Ok() {
+		code = me.updateIdentity(name, id)
+	}
+	return code
 }
 
-func (me *LoopbackFileSystem) Mkdir(path string, mode uint32) (code Status) {
-	return OsErrorToErrno(os.Mkdir(me.GetPath(path), mode))
+func (me *LoopbackFileSystem) Mkdir(path string, mode uint32, id *Identity) (code Status) {
+	err := os.Mkdir(me.GetPath(path), mode)
+	if err == nil {
+		return me.updateIdentity(path, id)
+	}
+	return OsErrorToErrno(err)	
 }
+
+func (me *LoopbackFileSystem) updateIdentity(path string, id *Identity) (code Status) {
+	if id != nil && (os.Geteuid() == 0 || os.Getuid() == 0) {
+		err := os.Chown(me.GetPath(path), int(id.Owner.Uid), int(id.Owner.Gid))
+		log.Println("chown", path, err, me.root)
+	}
+	return OK
+}
+
 
 // Don't use os.Remove, it removes twice (unlink followed by rmdir).
 func (me *LoopbackFileSystem) Unlink(name string) (code Status) {
@@ -138,9 +155,13 @@ func (me *LoopbackFileSystem) Access(name string, mode uint32) (code Status) {
 	return Status(syscall.Access(me.GetPath(name), mode))
 }
 
-func (me *LoopbackFileSystem) Create(path string, flags uint32, mode uint32) (fuseFile File, code Status) {
+func (me *LoopbackFileSystem) Create(path string, flags uint32, mode uint32, id *Identity) (fuseFile File, code Status) {
 	f, err := os.OpenFile(me.GetPath(path), int(flags)|os.O_CREATE, mode)
-	return &LoopbackFile{File: f}, OsErrorToErrno(err)
+	if err != nil {
+		return nil, OsErrorToErrno(err)
+	}
+	code = me.updateIdentity(path, id)
+	return &LoopbackFile{File: f}, code
 }
 
 func (me *LoopbackFileSystem) GetXAttr(name string, attr string) ([]byte, Status) {

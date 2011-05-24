@@ -81,6 +81,7 @@ func (me *MutableDataFile) Chmod(perms uint32) Status {
 
 type FSetAttrFs struct {
 	DefaultFileSystem
+
 	file *MutableDataFile
 }
 
@@ -107,7 +108,7 @@ func (me *FSetAttrFs) Open(name string, flags uint32) (File, Status) {
 	return nil, ENOENT
 }
 
-func (me *FSetAttrFs) Create(name string, flags uint32, mode uint32) (File, Status) {
+func (me *FSetAttrFs) Create(name string, flags uint32, mode uint32, id *Identity) (File, Status) {
 	if name == "file" {
 		f := NewFile()
 		me.file = f
@@ -178,3 +179,4 @@ func TestFSetAttr(t *testing.T) {
 
 	// TODO - test chown if run as root.
 }
+

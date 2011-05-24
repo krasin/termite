@@ -53,6 +53,14 @@ func newMount(fs FileSystem) *mountData {
 	return &mountData{fs: fs}
 }
 
+func (me *mountData) getIdentity(header *InHeader) *Identity {
+	if me.options.AllowOther {
+		return &header.Identity
+	}
+	return nil
+}
+
+
 // Tests should set to true.
 var paranoia = false
 

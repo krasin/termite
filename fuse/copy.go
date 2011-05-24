@@ -4,7 +4,7 @@ import (
 	"os"
 )
 
-func CopyFile(srcFs, destFs FileSystem, srcFile, destFile string) Status {
+func CopyFile(srcFs, destFs FileSystem, srcFile, destFile string, id *Identity) Status {
 	src, code := srcFs.Open(srcFile, uint32(os.O_RDONLY))
 	if !code.Ok() {
 		return code
@@ -20,7 +20,7 @@ func CopyFile(srcFs, destFs FileSystem, srcFile, destFile string) Status {
 	w := WriteIn{
 		Flags: uint32(os.O_WRONLY | os.O_CREATE | os.O_TRUNC),
 	}
-	dst, code := destFs.Create(destFile, w.Flags, attr.Mode)
+	dst, code := destFs.Create(destFile, w.Flags, attr.Mode, id)
 	if !code.Ok() {
 		return code
 	}

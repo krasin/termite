@@ -75,14 +75,14 @@ func (me *TimingFileSystem) Readlink(name string) (string, Status) {
 	return me.FileSystem.Readlink(name)
 }
 
-func (me *TimingFileSystem) Mknod(name string, mode uint32, dev uint32) Status {
+func (me *TimingFileSystem) Mknod(name string, mode uint32, dev uint32, id *Identity) Status {
 	defer me.startTimer("Mknod", name)()
-	return me.FileSystem.Mknod(name, mode, dev)
+	return me.FileSystem.Mknod(name, mode, dev, id)
 }
 
-func (me *TimingFileSystem) Mkdir(name string, mode uint32) Status {
+func (me *TimingFileSystem) Mkdir(name string, mode uint32, id *Identity) Status {
 	defer me.startTimer("Mkdir", name)()
-	return me.FileSystem.Mkdir(name, mode)
+	return me.FileSystem.Mkdir(name, mode, id)
 }
 
 func (me *TimingFileSystem) Unlink(name string) (code Status) {
@@ -150,9 +150,9 @@ func (me *TimingFileSystem) Access(name string, mode uint32) (code Status) {
 	return me.FileSystem.Access(name, mode)
 }
 
-func (me *TimingFileSystem) Create(name string, flags uint32, mode uint32) (file File, code Status) {
+func (me *TimingFileSystem) Create(name string, flags uint32, mode uint32, id *Identity) (file File, code Status) {
 	defer me.startTimer("Create", name)()
-	return me.FileSystem.Create(name, flags, mode)
+	return me.FileSystem.Create(name, flags, mode, id)
 }
 
 func (me *TimingFileSystem) Utimens(name string, AtimeNs uint64, CtimeNs uint64) (code Status) {

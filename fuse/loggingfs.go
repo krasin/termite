@@ -54,14 +54,14 @@ func (me *LoggingFileSystem) Readlink(name string) (string, Status) {
 	return me.FileSystem.Readlink(name)
 }
 
-func (me *LoggingFileSystem) Mknod(name string, mode uint32, dev uint32) Status {
+func (me *LoggingFileSystem) Mknod(name string, mode uint32, dev uint32, id *Identity) Status {
 	me.Print("Mknod", name)
-	return me.FileSystem.Mknod(name, mode, dev)
+	return me.FileSystem.Mknod(name, mode, dev, id)
 }
 
-func (me *LoggingFileSystem) Mkdir(name string, mode uint32) Status {
+func (me *LoggingFileSystem) Mkdir(name string, mode uint32, id *Identity) Status {
 	me.Print("Mkdir", name)
-	return me.FileSystem.Mkdir(name, mode)
+	return me.FileSystem.Mkdir(name, mode, id)
 }
 
 func (me *LoggingFileSystem) Unlink(name string) (code Status) {
@@ -129,9 +129,9 @@ func (me *LoggingFileSystem) Access(name string, mode uint32) (code Status) {
 	return me.FileSystem.Access(name, mode)
 }
 
-func (me *LoggingFileSystem) Create(name string, flags uint32, mode uint32) (file File, code Status) {
+func (me *LoggingFileSystem) Create(name string, flags uint32, mode uint32, id *Identity) (file File, code Status) {
 	me.Print("Create", name)
-	return me.FileSystem.Create(name, flags, mode)
+	return me.FileSystem.Create(name, flags, mode, id)
 }
 
 func (me *LoggingFileSystem) Utimens(name string, AtimeNs uint64, CtimeNs uint64) (code Status) {

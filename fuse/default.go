@@ -208,11 +208,11 @@ func (me *DefaultFileSystem) Readlink(name string) (string, Status) {
 	return "", ENOSYS
 }
 
-func (me *DefaultFileSystem) Mknod(name string, mode uint32, dev uint32) Status {
+func (me *DefaultFileSystem) Mknod(name string, mode uint32, dev uint32, id *Identity) Status {
 	return ENOSYS
 }
 
-func (me *DefaultFileSystem) Mkdir(name string, mode uint32) Status {
+func (me *DefaultFileSystem) Mkdir(name string, mode uint32, id *Identity) Status {
 	return ENOSYS
 }
 
@@ -271,7 +271,7 @@ func (me *DefaultFileSystem) Access(name string, mode uint32) (code Status) {
 	return ENOSYS
 }
 
-func (me *DefaultFileSystem) Create(name string, flags uint32, mode uint32) (file File, code Status) {
+func (me *DefaultFileSystem) Create(name string, flags uint32, mode uint32, id *Identity) (file File, code Status) {
 	return nil, ENOSYS
 }
 

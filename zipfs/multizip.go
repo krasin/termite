@@ -211,7 +211,7 @@ func (me *MultiZipFs) Open(name string, flags uint32) (file fuse.File, code fuse
 	return nil, fuse.ENOENT
 }
 
-func (me *MultiZipFs) Create(name string, flags uint32, mode uint32) (file fuse.File, code fuse.Status) {
+func (me *MultiZipFs) Create(name string, flags uint32, mode uint32, id *fuse.Identity) (file fuse.File, code fuse.Status) {
 	dir, base := filepath.Split(name)
 	if dir != CONFIG_PREFIX {
 		return nil, fuse.EPERM

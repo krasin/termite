@@ -31,8 +31,8 @@ type FileSystem interface {
 
 	// Tree structure
 	Link(oldName string, newName string) (code Status)
-	Mkdir(name string, mode uint32) Status
-	Mknod(name string, mode uint32, dev uint32) Status
+	Mkdir(name string, mode uint32, id *Identity) Status
+	Mknod(name string, mode uint32, dev uint32, id *Identity) Status
 	Rename(oldName string, newName string) (code Status)
 	Rmdir(name string) (code Status)
 	Unlink(name string) (code Status)
@@ -50,7 +50,7 @@ type FileSystem interface {
 	// File handling.  If opening for writing, the file's mtime
 	// should be updated too.
 	Open(name string, flags uint32) (file File, code Status)
-	Create(name string, flags uint32, mode uint32) (file File, code Status)
+	Create(name string, flags uint32, mode uint32, id *Identity) (file File, code Status)
 
 	// Flush() gets called as a file opened for read/write.
 	Flush(name string) Status
@@ -90,8 +90,12 @@ type FileSystemOptions struct {
 	EntryTimeout    float64
 	AttrTimeout     float64
 	NegativeTimeout float64
+
+	// If set, pass calling pid/gid into filesystem.
+	AllowOther      bool
 }
 
+// Options for fusermount.
 type MountOptions struct {
 	AllowOther      bool
 }

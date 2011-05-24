@@ -254,7 +254,7 @@ func (me *FileSystemConnector) Mknod(header *InHeader, input *MknodIn, name stri
 		return nil, ENOENT
 	}
 	fullPath = filepath.Join(fullPath, name)
-	err := mount.fs.Mknod(fullPath, input.Mode, uint32(input.Rdev))
+	err := mount.fs.Mknod(fullPath, input.Mode, uint32(input.Rdev), mount.getIdentity(header))
 	if err != OK {
 		return nil, err
 	}
@@ -266,7 +266,7 @@ func (me *FileSystemConnector) Mkdir(header *InHeader, input *MkdirIn, name stri
 	if mount == nil {
 		return nil, ENOENT
 	}
-	code = mount.fs.Mkdir(filepath.Join(fullPath, name), input.Mode)
+	code = mount.fs.Mkdir(filepath.Join(fullPath, name), input.Mode, mount.getIdentity(header))
 	if code.Ok() {
 		out, code = me.internalLookup(parent, name, 1)
 	}
@@ -309,6 +309,7 @@ func (me *FileSystemConnector) Symlink(header *InHeader, pointedTo string, linkN
 	}
 
 	out, code = me.internalLookup(parent, linkName, 1)
+		
 	return out, code
 }
 
@@ -359,6 +360,7 @@ func (me *FileSystemConnector) Access(header *InHeader, input *AccessIn) (code S
 	return mount.fs.Access(p, input.Mask)
 }
 
+
 func (me *FileSystemConnector) Create(header *InHeader, input *CreateIn, name string) (flags uint32, h uint64, out *EntryOut, code Status) {
 	directory, mount, parent := me.GetPath(header.NodeId)
 	if mount == nil {
@@ -366,7 +368,7 @@ func (me *FileSystemConnector) Create(header *InHeader, input *CreateIn, name st
 	}
 	fullPath := filepath.Join(directory, name)
 
-	f, err := mount.fs.Create(fullPath, uint32(input.Flags), input.Mode)
+	f, err := mount.fs.Create(fullPath, uint32(input.Flags), input.Mode, mount.getIdentity(header))
 	if err != OK {
 		return 0, 0, nil, err
 	}
