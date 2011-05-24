@@ -38,7 +38,6 @@ func HashPath(dir string, md5 []byte) string {
 	return dst
 }
 
-
 func (me *DiskFileCache) HasHash(hash []byte) bool {
 	p := HashPath(me.dir, hash)
 	_, err := os.Lstat(p)

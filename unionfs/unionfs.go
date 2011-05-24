@@ -80,6 +80,9 @@ type UnionFsOptions struct {
 	BranchCacheTTLSecs   float64
 	DeletionCacheTTLSecs float64
 	DeletionDirName      string
+
+	// Used for creating files/directories.
+	*fuse.Identity
 }
 
 const (
@@ -103,7 +106,7 @@ func NewUnionFs(name string, fileSystems []fuse.FileSystem, options UnionFsOptio
 	writable := g.fileSystems[0]
 	fi, code := writable.GetAttr(options.DeletionDirName)
 	if code == fuse.ENOENT {
-		code = writable.Mkdir(options.DeletionDirName, 0755)
+		code = writable.Mkdir(options.DeletionDirName, 0755, g.options.Identity)
 		fi, code = writable.GetAttr(options.DeletionDirName)
 	}
 	if !code.Ok() || !fi.IsDirectory() {
@@ -240,7 +243,7 @@ func (me *UnionFs) Promote(name string, srcResult branchResult) fuse.Status {
 	// Promote directories.
 	me.promoteDirsTo(name)
 
-	code := fuse.CopyFile(sourceFs, writable, name, name)
+	code := fuse.CopyFile(sourceFs, writable, name, name, me.options.Identity)
 	if !code.Ok() {
 		me.branchCache.GetFresh(name)
 		return code
@@ -290,7 +293,7 @@ func (me *UnionFs) Rmdir(path string) (code fuse.Status) {
 	return code
 }
 
-func (me *UnionFs) Mkdir(path string, mode uint32) (code fuse.Status) {
+func (me *UnionFs) Mkdir(path string, mode uint32, id *fuse.Identity) (code fuse.Status) {
 	r := me.getBranch(path)
 	if r.code != fuse.ENOENT {
 		return syscall.EEXIST
@@ -298,7 +301,7 @@ func (me *UnionFs) Mkdir(path string, mode uint32) (code fuse.Status) {
 
 	code = me.promoteDirsTo(path)
 	if code.Ok() {
-		code = me.fileSystems[0].Mkdir(path, mode)
+		code = me.fileSystems[0].Mkdir(path, mode, me.options.Identity)
 	}
 	if code.Ok() {
 		me.removeDeletion(path)
@@ -492,7 +495,7 @@ func (me *UnionFs) promoteDirsTo(filename string) fuse.Status {
 		j := len(todo) - i - 1
 		d := todo[j]
 		log.Println("Promoting directory", d)
-		code := me.fileSystems[0].Mkdir(d, 0755)
+		code := me.fileSystems[0].Mkdir(d, 0755, me.options.Identity)
 		if code != fuse.OK {
 			log.Println("Error creating dir leading to path", d, code)
 			return fuse.EPERM
@@ -504,14 +507,14 @@ func (me *UnionFs) promoteDirsTo(filename string) fuse.Status {
 	return fuse.OK
 }
 
-func (me *UnionFs) Create(name string, flags uint32, mode uint32) (fuseFile fuse.File, code fuse.Status) {
+func (me *UnionFs) Create(name string, flags uint32, mode uint32, id *fuse.Identity) (fuseFile fuse.File, code fuse.Status) {
 	writable := me.fileSystems[0]
 
 	code = me.promoteDirsTo(name)
 	if code != fuse.OK {
 		return nil, code
 	}
-	fuseFile, code = writable.Create(name, flags, mode)
+	fuseFile, code = writable.Create(name, flags, mode, me.options.Identity)
 	if code.Ok() {
 		me.removeDeletion(name)
 

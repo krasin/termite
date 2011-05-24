@@ -25,13 +25,81 @@ type WorkerTask struct {
 	cacheDir string
 	tmpDir string
 	*Task
+	*user.User
 
 	*fuse.MountState
 }
+
 func (me *WorkerTask) Stop() {
 	log.Println("unmounting..")
 	me.MountState.Unmount()
 }
+
+
+func NewWorkerTask(server *rpc.Client, task *Task, cacheDir string) (*WorkerTask, os.Error) {
+	w := &WorkerTask{
+	cacheDir: cacheDir,
+	}
+	
+	tmpDir, err := ioutil.TempDir("", "rpcfs-tmp")
+	type dirInit struct {
+		dst *string
+		val string
+	}
+	
+	for _, v := range []dirInit{
+		dirInit{&w.rwDir, "rw"},
+		dirInit{&w.mount, "mnt"},
+	} {
+		*v.dst = filepath.Join(tmpDir, v.val)
+		err = os.Mkdir(*v.dst, 0700)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	w.Task = task
+
+	fs := fuse.NewLoopbackFileSystem(w.rwDir)
+	roFs := NewRpcFs(server, w.cacheDir)
+
+	w.User, err = user.Lookup("nobody")
+	if err != nil {
+		return nil, err
+	}
+	
+	// High ttl, since all writes come through fuse.
+	ttl := 100.0
+	opts := unionfs.UnionFsOptions{
+		BranchCacheTTLSecs: ttl,
+		DeletionCacheTTLSecs:ttl,
+		DeletionDirName: "DELETIONS",
+		Identity: &fuse.Identity{
+		Owner: fuse.Owner{
+				uint32(w.User.Uid),
+				uint32(w.User.Gid),
+			},
+		},
+	}
+	mOpts := fuse.FileSystemOptions{
+		EntryTimeout: ttl,
+		AttrTimeout: ttl,
+		NegativeTimeout: ttl,
+	}
+	
+	ufs := unionfs.NewUnionFs("ufs", []fuse.FileSystem{fs, roFs}, opts)
+	conn := fuse.NewFileSystemConnector(ufs, &mOpts)
+	state := fuse.NewMountState(conn)
+	state.Mount(w.mount, &fuse.MountOptions{AllowOther: true})
+	if err != nil {
+		return nil, err
+	}
+	
+	w.MountState = state
+	go state.Loop(true)
+	return w, nil
+}
+
 
 func (me *WorkerTask) Run() os.Error {
 	defer me.Stop()
@@ -78,59 +146,5 @@ func (me *WorkerTask) Run() os.Error {
 	log.Println("stderr:", string(stderr))
 	log.Println("result:", msg, "dir:", me.tmpDir)
 	return err		
-}
-
-
-func NewWorkerTask(server *rpc.Client, task *Task, cacheDir string) (*WorkerTask, os.Error) {
-	w := &WorkerTask{
-	cacheDir: cacheDir,
-	}
-	
-	tmpDir, err := ioutil.TempDir("", "rpcfs-tmp")
-	type dirInit struct {
-		dst *string
-		val string
-	}
-	
-	for _, v := range []dirInit{
-		dirInit{&w.rwDir, "rw"},
-		dirInit{&w.mount, "mnt"},
-	} {
-		*v.dst = filepath.Join(tmpDir, v.val)
-		err = os.Mkdir(*v.dst, 0700)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	w.Task = task
-
-	fs := fuse.NewLoopbackFileSystem(w.rwDir)
-	roFs := NewRpcFs(server, w.cacheDir)
-
-	// High ttl, since all writes come through fuse.
-	ttl := 100.0
-	opts := unionfs.UnionFsOptions{
-		BranchCacheTTLSecs: ttl,
-		DeletionCacheTTLSecs:ttl,
-		DeletionDirName: "DELETIONS",
-	}
-	mOpts := fuse.FileSystemOptions{
-		EntryTimeout: ttl,
-		AttrTimeout: ttl,
-		NegativeTimeout: ttl,
-	}
-	
-	ufs := unionfs.NewUnionFs("ufs", []fuse.FileSystem{fs, roFs}, opts)
-	conn := fuse.NewFileSystemConnector(ufs, &mOpts)
-	state := fuse.NewMountState(conn)
-	state.Mount(w.mount, &fuse.MountOptions{AllowOther: true})
-	if err != nil {
-		return nil, err
-	}
-	
-	w.MountState = state
-	go state.Loop(true)
-	return w, nil
 }
 
