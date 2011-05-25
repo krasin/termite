@@ -35,18 +35,21 @@ func (me *WorkerTask) Stop() {
 	me.MountState.Unmount()
 }
 
+func (me *WorkerTask) RWDir() string {
+	return me.rwDir
+}
 
 func NewWorkerTask(server *rpc.Client, task *Task, cacheDir string) (*WorkerTask, os.Error) {
 	w := &WorkerTask{
 	cacheDir: cacheDir,
 	}
-	
+
 	tmpDir, err := ioutil.TempDir("", "rpcfs-tmp")
 	type dirInit struct {
 		dst *string
 		val string
 	}
-	
+
 	for _, v := range []dirInit{
 		dirInit{&w.rwDir, "rw"},
 		dirInit{&w.mount, "mnt"},
@@ -67,7 +70,7 @@ func NewWorkerTask(server *rpc.Client, task *Task, cacheDir string) (*WorkerTask
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// High ttl, since all writes come through fuse.
 	ttl := 100.0
 	opts := unionfs.UnionFsOptions{
@@ -86,7 +89,7 @@ func NewWorkerTask(server *rpc.Client, task *Task, cacheDir string) (*WorkerTask
 		AttrTimeout: ttl,
 		NegativeTimeout: ttl,
 	}
-	
+
 	ufs := unionfs.NewUnionFs("ufs", []fuse.FileSystem{fs, roFs}, opts)
 	conn := fuse.NewFileSystemConnector(ufs, &mOpts)
 	state := fuse.NewMountState(conn)
@@ -94,7 +97,7 @@ func NewWorkerTask(server *rpc.Client, task *Task, cacheDir string) (*WorkerTask
 	if err != nil {
 		return nil, err
 	}
-	
+
 	w.MountState = state
 	go state.Loop(true)
 	return w, nil
@@ -106,7 +109,7 @@ func (me *WorkerTask) Run() os.Error {
 
 	rStdout, wStdout, err := os.Pipe()
 	rStderr, wStderr, err := os.Pipe()
-	
+
 	attr := os.ProcAttr{
 	Env: me.Task.Env,
         Files: []*os.File{nil, wStdout, wStderr},
@@ -136,15 +139,15 @@ func (me *WorkerTask) Run() os.Error {
 
 	wStdout.Close()
 	wStderr.Close()
-	
+
 	stdout, err := ioutil.ReadAll(rStdout)
 	stderr, err := ioutil.ReadAll(rStderr)
-	
+
 	msg, err := proc.Wait(0)
-	
+
 	log.Println("stdout:", string(stdout))
 	log.Println("stderr:", string(stderr))
 	log.Println("result:", msg, "dir:", me.tmpDir)
-	return err		
+	return err
 }
 
