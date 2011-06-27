@@ -224,7 +224,7 @@ func (me *UnionFs) putDeletion(name string) (code fuse.Status) {
 	
 	var f fuse.File
 	if code == fuse.ENOENT {
-		f, code = writable.Create(marker, uint32(os.O_TRUNC|os.O_WRONLY), 0644)
+		f, code = writable.Create(marker, uint32(os.O_TRUNC|os.O_WRONLY), 0644, me.options.Identity)
 	} else {
 		writable.Chmod(marker, 0644)
 		f, code = writable.Open(marker, uint32(os.O_TRUNC|os.O_WRONLY))

@@ -81,6 +81,8 @@ func (me *FsServer) ReadDir(req *DirRequest, r *DirResponse) (os.Error) {
 }
 
 func (me *FsServer) FileContent(req *ContentRequest, rep *ContentResponse) (os.Error) {
+	log.Println("FileContent", req)
+	
 	f, err := os.Open(HashPath(me.cache.dir, req.Hash))
 	if err != nil {
 		return err

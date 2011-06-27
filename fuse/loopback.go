@@ -123,7 +123,7 @@ func (me *LoopbackFileSystem) Mkdir(path string, mode uint32, id *Identity) (cod
 func (me *LoopbackFileSystem) updateIdentity(path string, id *Identity) (code Status) {
 	if id != nil && (os.Geteuid() == 0 || os.Getuid() == 0) {
 		err := os.Chown(me.GetPath(path), int(id.Owner.Uid), int(id.Owner.Gid))
-		log.Println("chown", path, err, me.root)
+		return OsErrorToErrno(err)
 	}
 	return OK
 }
